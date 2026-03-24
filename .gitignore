@@ -1,0 +1,14 @@
+# macOS
+.DS_Store
+
+# Xcode
+*.xcuserstate
+xcuserdata/
+*.xcuserdatad/
+DerivedData/
+*.moved-aside
+*.pbxuser
+*.perspectivev3
+
+# Build
+build/
