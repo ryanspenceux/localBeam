@@ -12,3 +12,5 @@ DerivedData/
 
 # Build
 build/
+*.zip
+__MACOSX/

@@ -70,6 +70,17 @@ class BonjourService: ObservableObject {
             using: params
         )
 
+        browser?.stateUpdateHandler = { state in
+            switch state {
+            case .failed(let error):
+                print("Browser failed: \(error) — restarting")
+                self.browser?.cancel()
+                self.startBrowsing()
+            default:
+                break
+            }
+        }
+
         browser?.browseResultsChangedHandler = { [weak self] results, _ in
             guard let self = self else { return }
 

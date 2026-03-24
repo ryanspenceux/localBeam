@@ -7,9 +7,7 @@ struct MainView: View {
     @StateObject private var fileTransfer = FileTransfer()
     @State private var selectedPeer: Peer?
     @State private var showFilePicker = false
-    @State private var showIncomingRequest = false
-    @State private var incomingPeerName = ""
-    @State private var pendingConnection: NWConnection?
+    @State private var incomingTransfer: IncomingTransfer?
     @State private var receivedFiles: [String] = []
     @State private var isDragTargeted = false
 
@@ -34,9 +32,9 @@ struct MainView: View {
         .frame(minWidth: 550, minHeight: 400)
         .onAppear {
             bonjourService.onIncomingConnection = { connection in
-                incomingPeerName = "A nearby device"
-                pendingConnection = connection
-                showIncomingRequest = true
+                fileTransfer.receiveMetadata(on: connection) { transfer in
+                    incomingTransfer = transfer
+                }
             }
             bonjourService.start()
         }
@@ -51,23 +49,6 @@ struct MainView: View {
             if let url = try? result.get().first, let peer = selectedPeer {
                 fileTransfer.send(fileURL: url, to: peer.endpoint) { _ in }
             }
-        }
-        .alert("Incoming File", isPresented: $showIncomingRequest) {
-            Button("Accept") {
-                if let connection = pendingConnection {
-                    fileTransfer.receive(on: connection) { filename in
-                        if let filename = filename {
-                            receivedFiles.append(filename)
-                        }
-                    }
-                }
-            }
-            Button("Decline", role: .cancel) {
-                pendingConnection?.cancel()
-                pendingConnection = nil
-            }
-        } message: {
-            Text("\(incomingPeerName) wants to send you a file.")
         }
     }
 
@@ -107,6 +88,12 @@ struct MainView: View {
 
     private var transferPanel: some View {
         VStack(spacing: 20) {
+
+            // Incoming request card — shown when someone wants to send us a file
+            if let transfer = incomingTransfer {
+                incomingRequestCard(transfer)
+            }
+
             Spacer()
 
             ZStack {
@@ -194,6 +181,64 @@ struct MainView: View {
         }
         .frame(minWidth: 300)
         .padding()
+    }
+
+    // MARK: - Incoming request card
+
+    private func incomingRequestCard(_ transfer: IncomingTransfer) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                Image(systemName: "desktopcomputer")
+                    .foregroundColor(.accentColor)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(transfer.senderName)
+                        .font(.headline)
+                    Text("wants to send you a file")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+
+            HStack(spacing: 6) {
+                Image(systemName: "doc.fill")
+                    .foregroundColor(.secondary)
+                Text(transfer.filename)
+                    .font(.caption)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                Spacer()
+                Text(transfer.formattedSize)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+
+            HStack(spacing: 10) {
+                Button("Decline") {
+                    fileTransfer.decline(transfer)
+                    incomingTransfer = nil
+                }
+                .buttonStyle(.bordered)
+                .foregroundColor(.red)
+
+                Button("Accept") {
+                    incomingTransfer = nil
+                    fileTransfer.accept(transfer) { filename in
+                        if let filename = filename {
+                            receivedFiles.append(filename)
+                        }
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+            }
+        }
+        .padding()
+        .background(Color(nsColor: .controlBackgroundColor))
+        .cornerRadius(12)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color.accentColor.opacity(0.4), lineWidth: 1)
+        )
+        .padding(.horizontal)
     }
 
     // MARK: - Drop handling
